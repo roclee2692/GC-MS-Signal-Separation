@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Claude Code
+.claude/
+
+# Large data files (not suitable for git)
+*.npy
+*.pth
+*.mzML
+*.D/
+*.pdf
+~$*
+
+# Raw instrument data & combination data (large)
+十个进样/
+十选二组合/
+
+# Experiment outputs (large, reproducible from code)
+outputs/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
