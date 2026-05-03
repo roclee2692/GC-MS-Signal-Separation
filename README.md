@@ -20,66 +20,70 @@
 
 ### 💡 方案设计与大规模数据合成实验
 
-由于工业界带有完美标签的真实混合数据难以低成本获取，本项目采用了算法工程中经典的“**仿真基线合成 (Synthetic Data Generation)**”路径，并在后期实验中**大规模突变扩充了数据量级与搜索空间**：
+由于工业界带有完美标签的真实混合数据难以低成本获取，本项目采用了算法工程中经典的“**仿真基线合成 (Synthetic Data Generation)**”路径，并在后期实验中**大规模爆发式扩充了数据量级与搜索空间**：
 
-1. **构建近 7.5 万样本的超大规模合成物理数据集**：
-- **从 10 种到 87 种**：最初阶段我们仅使用 **10 种** 基础原料进行验证，而在最终的大规模消融验证中，我们覆盖单体扩大到了近 9 倍，极高密度地提取了多达 **87 种独立产品单体色谱图**。
-- **全排列组合**：基于 87 种单体，通过算法构建了它们之间所有的两两配对，产生了 **`C(87,2) = 3741` 种排列组合**的庞大解空间。
-- **十等分比例与干扰增强**：针对这 3741 种组合，我们系统性遍历了每组固定 10 种经典的浓度配比（从 1:9 到 9:1），并叠加极其恶劣的保留时间漂移（RT Drift）与随机底噪增强。最终自动化推流算出了 **74,820 条高度仿真的混合色谱图测试大集**（总数据量近 7.5万）。
+1. **构建覆盖 74,820 样本的超大规模合成数据**：
+- **从 10 种暴增到 87 种**：最初阶段我们仅使用 **10 种** 基础原料，而在真正的大规模消融验证中，我们将基本盘直接拉高至对 **87 种独立单体色谱图**。
+- **全排列组合**：算法遍历这 87 种单体构建了所有两两配对组合，产生了 **`C(87,2) = 3741` 种排列配置**。
+- **比例与干扰增强**：针对这 3741 种组合，我们系统性遍历每组 10 种浓度配比固定值，叠加保留时间漂移（RT Drift）与底噪加强（Gaussian Noise）。通过代码**自动化生成了 74,820 条高度复杂的模拟混合色谱测试集（近7.5万大集规模）**，以进行系统性的学习曲线（Learning Curve）测试。
 
 2. **多模态与深度学习模型选型**：
 - 将该工业问题正式定义为 **多标签分类 (Multi-label Classification) + 比例回归 (Regression)** 的联合学习任务。
-- 独立搭建了基于 **1D-CNN** 和 **Transformer** 的序列信号特征处理算法。
-- 针对因混合组分排列引发的数学歧义，自研基于排列取 Min 的 **Order-invariant Loss（顺序无关损失函数）**，打破了次序干扰的影响。
-- **模型验证结论（CNN 胜出）**：即便在逼近 7.5 万的庞大数据量下，用 CNN 训练出的模型依然表现非凡，成功跑通了特征提取（成分盲识别率在子集达 99%以上）。与此同时我们发现，最初被寄予厚望的 Transformer 在这种一维特征色谱信号上完全“不好使”——它非但没有带来准确率的实质提升，反而伴随几十倍的内存开销与极慢的训练时长。**因此，我们弃用了 Transformer，全量落地使用 CNN 作为主力模型。**
+- 独立设计搭建了基于 **1D-CNN** 和 **Transformer** 的序列信号特征处理算法。
+- 针对因混合组分排列引发的数学歧义，自研了基于排列取 Min 的 **Order-invariant Loss（顺序无关损失函数）**，打破次序干扰影响。
+- **模型验证结论（确立 CNN 主力）**：即便在逼近 7.5 万的庞大数据量下，CNN 基线模型依然表现非凡，成功跑通特征提取并使成分识别率达标。与此同时，我们发现在其他领域性能出众的 Transformer，在这个项目中表现十分差劲——在一维特征色谱信号上它的表征甚至不如 CNN，准确率没有任何跨越突破，且伴随极其昂贵的内存开销与数倍延长的训练耗时。最终**果断弃用 Transformer，确立 CNN 为落地生产模型**。
 
 3. **端到端演示系统 (Demo UI)**：
-搭建了完整的预估前端可视化看板系统。支持中英文界面一键切换。业务人员仅需拖拽设备生成的 `.xlsx` 文件，即可直接在线推理。
+搭建了完整的 Web 前端应用界面服务，支持文档中英文通过页面超链接实现一键平滑跳转。业务人员仅需拖拽 `.xlsx` 提取特征即可直出推理结果。
 
-### 🔬 工业界实战反思：Sim2Real 鸿沟 (Lessons Learned)
+### 🔬 工业界反思：Sim2Real 鸿沟 (Lessons Learned)
 
-尽管由于规模扩容，算法在本地 7 万级模拟合成数据上依然横扫千军，但在最后对**真实的工厂盲测混合数据（Real Test Data）**进行验证时，我们遭遇了严峻的壁垒：
+尽管算法最终在本地 7 万张粗略合成混合图上碾压全场，但在实际交付前夕对**带有真实工厂测绘环境特性盲测集（Real Test Data）**进行验证时，我们遭遇了壁垒：
 
-- **Sim-to-Real 的相关性断层**：因为程序线性叠加与插值生成的 7 万多张合成色谱图，无法完美反应自然界真实的物理共流出或分子间相互作用导致的严重极性脱尾偏移。模型在盲推中撞上了“域偏移（Domain Shift）”。
-- **越发停滞的工程 ROI**：想跨过这层鸿沟的最后希望是依靠企业去提供数万份真实微调样本，但极高的高昂仪器耗时直接封死了路线。正如我们在“学习曲线”和“消融对照实验”末尾中痛苦意识到的：**“当模型在现阶段物理瓶颈（即缺乏真实m/z信息）上表现停滞时，仅仅盲目去扩建更多的组合伪仿真粗糙数据，短期内已经毫无任何明显收益了”**。
+- **Sim-to-Real 的相关性鸿沟**：程序线性叠加与插值生成的极其规整的这七万余张合成信号图，无法表征自然界多分子共流出相互包裹导致的光谱拖尾与漂移。两批数据间存在直观的 “域偏移（Domain Shift）”。
+- **陷入停顿瓶颈圈的数据重构ROI**：要想填补这层微调，需要业务端自行搭建一条自动化微量试剂测绘流水线产出几万份真实的带有 m/z 质量通道的打靶数据，极高的数据与时间成本终结了部署计划。印证了我们在“对照实验”结尾总结到的一样：**模型已经卡死在数据生产范式的客观瓶颈下，单纯继续无节制地生成更多的这类物理规律粗糙的二维组合仿真图（如增加至十多万），在真实指标上实质将永远等于零收益！必须引入 m/z 物理通道。**
 
-**总结沉淀**：
-虽然项目因现实落地困难而搁置，但它比任何顺遂的实验室 Demo 都令我受益匪浅：**这切身体现了“Data-centric AI”在工业界的决定性意义。贴近物理客观环境的高质量数据，其价值永远碾压在算法上空洞的堆砌。**这也将是我带入未来所有数据开发工作中最宝贵的第一手复盘经验。
+**总结反思**：
+因为现实物理数据壁垒被迫归档停止，这构成了我走向人工智能一线极具痛点的案例背书，直观展示了在工业生产应用中，贯彻 **Data-centric AI**（拥抱真正来自业务物理环境的高质量数据），带来的作用远非枯燥敲击代码的闭门造车堆砌架构模型所能奢求的。
 
-### 🧩 核心技术栈
-- **核心算法设计**: PyTorch, 1D-CNN, Transformer, Custom Loss Algorithms
-- **大规模数据工程**: Pandas, NumPy, SciPy (对数万条大体积数组进行矩阵特征提取推流算力)
-- **部署接口**: Python Flask, Javascript/HTML
+### 🧩 技术栈
+- **算法架构**: PyTorch, 1D CNN, 定制次序损失算法损失模型
+- **数据工程**: Pandas, NumPy, SciPy (超大型百万特征时序流向量化处理与合并操作)
+- **部署产品化**: Python/Flask 及前端展示
 
 ---
 
 ## 🇬🇧 English Version
 
-**Enterprise AI Implementation Exploration · Industrial Data Science Practice**
+**Enterprise Collaboration & Industrial Data Science Practice**
 
 ### 📖 Project Background
-The cooperative company needed to deconstruct the formulas of complex plant essential mixed oils. Because direct GC-MS signal outputs endure harsh peak-overlappings, manual comparison operations run at extremely inefficient capacity.
-**Core Objective**: Build a deep learning pipeline absorbing 1-dimensional GC-MS (RT-TIC) data directly, achieving End-to-End **formula ingredient identification** and **proportion ratio regression**.
+The collaborating industrial enterprise needed to deconstruct the formulas of complex plant essential mixed oils. Because direct GC-MS signal outputs endure harsh peak-overlappings and interactions, traditional manual comparisons perform extremely poorly.
+**Core Objective**: Build a deep learning pipeline absorbing 1-dimensional GC-MS (RT-TIC) chromatogram data directly, achieving End-to-End **ingredient composition identification** paired with **mixture proportion breakdown regression**.
 
-### 💡 Synthetic Scaled Big Data Experimentation
+### 💡 Massive Synthetic Scale-Up Experimentation
 
-1. **Expanding the Data Limit to 74,820 Massive Synthetic Records**:
-  - **A Jump from 10 to 87 Target Units**: Initially starting with 10 raw materials, we radically expanded vertically to extract **87 uniquely independent single-component targets**.
-  - **The Pairwise Combination Matrix**: Formulated across 87 samples, we mapped completely crossing combinations totaling **`C(87,2) = 3741` fundamental pairs**.
-  - **Ratios and Augmentations**: Multiplying these 3741 pairs by 10 systematic ratio slices each, accompanied by Retention Time Drifting and noise variations, the engine crashed out **74,820 synthesized chromatography test records**.
+Since procuring physically authentic lab data with clean percentage labels operates at devastatingly high resource costs, we adopted an automated **Synthetic Generation Generation Pipeline**:
 
-2. **Model Battle (CNN > Transformer)**:
-  - Formulated as **Multi-label Classification + Regression**.
-  - Deployed both lightweight **1D-CNN** architectures and deeply massive **Transformer** clusters independently.
-  - Engineered an **Order-invariant Loss** function to clear mathematical ambiguities raised by formula order inversions.
-  - **The CNN Definitively Won**: CNN efficiently dominated the 74K mega dataset running blindly past the 99% precision mark seamlessly. Conversely, the supposedly sophisticated Transformer model performed terribly under such 1D series signals. Offering drastically poorer optimization capability whilst bleeding processing power and draining train speeds to an unacceptable crawl, **we explicitly rejected Transformers to anchor purely on CNN.**
+1. **Expanding Scale to Over 74,000 Giant Physical Samples**:
+- **87 Total Monomer Foundations**: Moving far past the initially tiny 10 starting variables, our final ablation validations imported signals from exactly **87 completely individual monomer bases**.
+- **Combinational Expansion Matrix**: We structured programmatic pairing across all samples generating the **`C(87,2) = 3741` full pairing configuration scope**.
+- **Ten Levels and Stacking Interference**: Evaluating 10 specific mixing scale variations each upon these 3741 matrix outputs, actively combined to simulate rough lab machinery Retention Time Drift and severe base-noises. The engine processed natively generating **74,820 synthesized GC-MS array records** pushing model learning curves.
 
-### 🔬 The Sim2Real Domain Void Wall 
+2. **Model Selection Battles (1D-CNN vs. Transformer)**:
+- Engineered models using both sequence-efficient **1D-CNN** arrays against heavily attention-dependent **Transformer** setups.
+- Constructed a tailored **Order-invariant Loss Function** defeating algebraic ambiguity introduced through raw ingredient arrays shuffling correctly.
+- **The Verdict (CNN Destroyed Transformer)**: Proving incredibly robust, CNN completely tamed the overwhelming 74,800+ dataset achieving near 99% blind accuracy metrics easily on isolated tracks. Transformer, on the opposite end, completely sank executing 1-dimensional raw GC-MS records providing ZERO true performance breakthrough compared to baseline architectures while simultaneously draining unacceptable magnitudes of server hardware speed/footprints. We effectively **terminated Transformers adopting sole implementation around lightweight CNNs**.
 
-Although effortlessly conquering the 74,000+ local proxy dataset, colliding with the **Real Test Data** hit a harsh reality wall:
-- **Sim-to-Real Shift**: Code aggregations fail to encapsulate molecular co-eluting overlapping drifts naturally produced within real chemical machinery.
-- **ROI Stagnation**: As our \"Ablation vs Learning Curve\" stats severely summarized, blindly generating more synthetic proxies post-bottleneck yields literally \"Zero Tangible Returns.\" Fine-tuning realistically needed actual real samples which was excessively costly for the client.
+3. **End-to-End Demo System**:
+Fully integrated responsive application dash featuring clickable anchoring bilingual language adaptations, accepting straightforward `.xlsx` Drag-And-Drop user interactions.
 
-**Concluding Thought**:
-While the enterprise deployment stalled directly due to insufficient true data collection capabilities, it provided something priceless. The principle of **Data-Centric AI** — realizing that acquiring physically exact information fundamentally outpaces blind algorithmic scale pushing.
+### 🔬 Unlocking Sim2Real Walls: Core Lessons Learned
 
+Dominating simulated databases sadly stalled against pure absolute **Real Test Deployments** testing strict blind chemistry constraints:
+
+- **The Sim-to-Real Shift Gap**: 70,000 basic algorithm interpolations naturally missed capturing severe compound co-elution trailing distortions formed by real chemical fusions. The synthetics inherently hosted clear Domain Shift deviations.
+- **The ROI Deadlock Limit**: Jumping the fine-tune gap realistically required automated high-volume liquid physical test drops generating thousands of new genuine real-world recordings, financially breaking deployment schedules fundamentally. Mirroring perfectly what internal ablation testing forewarned: **Hitting objective algorithmic capacity limits using limited physics representations makes continuing massive mock-synthetic regenerations fundamentally mathematically pointless unless bringing real absolute m/z channel datasets.**
+
+**Project Conclusion**:
+Although formally halted by unachievable reality physical resource demands, personally encountering the brutal validation of **Data-Centric AI** limits heavily reframed my engineering methodology over strictly trying harder to carve fancier algorithms locally off paper.
