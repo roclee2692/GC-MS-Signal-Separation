@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GC-MS 混合物识别工具</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: "Microsoft YaHei", "PingFang SC", -apple-system, "Segoe UI", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .wrapper {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+            max-width: 900px;
+            width: 100%;
+            display: flex;
+            overflow: hidden;
+        }
+        /* 左侧信息栏 */
+        .sidebar {
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            padding: 48px 36px;
+            width: 340px;
+            min-width: 280px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .sidebar h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            line-height: 1.3;
+        }
+        .sidebar .tagline {
+            font-size: 14px;
+            color: rgba(255,255,255,0.6);
+            margin-bottom: 32px;
+            line-height: 1.6;
+        }
+        .feature-list {
+            list-style: none;
+            margin-bottom: 32px;
+        }
+        .feature-list li {
+            font-size: 13px;
+            color: rgba(255,255,255,0.8);
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            line-height: 1.5;
+        }
+        .feature-list li .dot {
+            width: 6px; height: 6px;
+            background: #60a5fa;
+            border-radius: 50%;
+            margin-top: 6px;
+            flex-shrink: 0;
+        }
+        .sidebar-footer {
+            font-size: 11px;
+            color: rgba(255,255,255,0.35);
+            line-height: 1.6;
+        }
+        /* 右侧上传区 */
+        .main {
+            flex: 1;
+            padding: 48px 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .main h2 {
+            font-size: 18px;
+            color: #1a1a2e;
+            margin-bottom: 8px;
+        }
+        .main .hint {
+            font-size: 13px;
+            color: #999;
+            margin-bottom: 28px;
+        }
+        .upload-area {
+            border: 2px dashed #d0d5dd;
+            border-radius: 12px;
+            padding: 48px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.25s;
+            background: #fafbfc;
+            margin-bottom: 20px;
+        }
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #f0f0ff;
+        }
+        .upload-area.has-file {
+            border-color: #16a34a;
+            background: #f0fdf4;
+        }
+        .upload-area.dragover {
+            border-color: #667eea;
+            background: #eef0ff;
+            transform: scale(1.01);
+        }
+        .upload-icon {
+            font-size: 42px;
+            margin-bottom: 12px;
+            color: #c0c5d0;
+            transition: color 0.2s;
+        }
+        .upload-area:hover .upload-icon { color: #667eea; }
+        .upload-area.has-file .upload-icon { color: #16a34a; }
+        .upload-text {
+            font-size: 14px;
+            color: #888;
+        }
+        .upload-sub {
+            font-size: 12px;
+            color: #bbb;
+            margin-top: 6px;
+        }
+        .file-name {
+            font-size: 14px;
+            color: #16a34a;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        input[type="file"] { display: none; }
+        .btn {
+            display: block;
+            width: 100%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff;
+            border: none;
+            padding: 14px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+            letter-spacing: 1px;
+        }
+        .btn:hover { opacity: 0.92; transform: translateY(-1px); }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .format-info {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        .format-tag {
+            font-size: 11px;
+            color: #888;
+            background: #f3f4f6;
+            padding: 4px 10px;
+            border-radius: 4px;
+        }
+        .error-box {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            color: #dc2626;
+            font-size: 13px;
+        }
+        /* 响应式：窄屏变竖版 */
+        @media (max-width: 700px) {
+            .wrapper { flex-direction: column; }
+            .sidebar {
+                width: 100%;
+                min-width: auto;
+                padding: 32px 28px 24px;
+            }
+            .main { padding: 32px 24px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <div class="sidebar">
+            <div>
+                <h1>GC-MS<br>混合物识别</h1>
+                <p class="tagline">上传色谱数据，快速识别两组分混合物的成分与比例</p>
+                <ul class="feature-list">
+                    <li><span class="dot"></span>基于 1D-CNN 深度学习模型</li>
+                    <li><span class="dot"></span>87 种单物质样本，C(87,2)=3741 对组合</li>
+                    <li><span class="dot"></span>成分识别准确率 ~89% (either-order)</li>
+                    <li><span class="dot"></span>比例预测持续优化中，结果仅供参考</li>
+                    <li><span class="dot"></span>支持 4 种模型：基准 / 漂移 / 噪声 / 漂移+噪声</li>
+                </ul>
+            </div>
+            <div class="sidebar-footer">
+                CNN-B87 v2 &middot; RT-TIC 1D &middot; 87 类<br>
+                Powered by PyTorch + RTX 4060
+            </div>
+        </div>
+
+        <div class="main">
+            <h2>上传色谱文件</h2>
+            <p class="hint">选择或拖拽 Excel 文件到下方区域</p>
+
+            {% if load_error %}
+            <div class="error-box">
+                模型加载失败: {{ load_error }}
+            </div>
+            {% endif %}
+
+            <form action="/predict" method="post" enctype="multipart/form-data" id="uploadForm">
+                <div class="upload-area" id="dropZone" onclick="document.getElementById('fileInput').click()">
+                    <div class="upload-icon" id="uploadIcon">&#8683;</div>
+                    <div class="upload-text" id="uploadText">点击选择文件，或拖拽到此处</div>
+                    <div class="upload-sub">.xlsx / .xls 格式，需包含 RT 和强度列</div>
+                    <div class="file-name" id="fileName"></div>
+                </div>
+                <input type="file" name="file" id="fileInput" accept=".xlsx,.xls">
+                <button type="submit" class="btn" id="submitBtn" disabled>开始识别</button>
+            </form>
+
+            <div class="format-info">
+                <span class="format-tag">Excel .xlsx</span>
+                <span class="format-tag">Excel .xls</span>
+                <span class="format-tag">含 RT + Intensity 列</span>
+                <span class="format-tag">最大 16MB</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const fileName = document.getElementById('fileName');
+        const submitBtn = document.getElementById('submitBtn');
+        const dropZone = document.getElementById('dropZone');
+        const uploadIcon = document.getElementById('uploadIcon');
+        const uploadText = document.getElementById('uploadText');
+
+        fileInput.addEventListener('change', function() {
+            if (this.files.length > 0) {
+                fileName.textContent = this.files[0].name;
+                dropZone.classList.add('has-file');
+                uploadIcon.innerHTML = '&#10003;';
+                uploadText.textContent = '文件已选择';
+                submitBtn.disabled = false;
+            }
+        });
+
+        // 拖拽支持
+        dropZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', function() {
+            dropZone.classList.remove('dragover');
+        });
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                fileInput.dispatchEvent(new Event('change'));
+            }
+        });
+
+        document.getElementById('uploadForm').addEventListener('submit', function() {
+            submitBtn.textContent = '识别中，请稍候...';
+            submitBtn.disabled = true;
+        });
+    </script>
+</body>
+</html>
